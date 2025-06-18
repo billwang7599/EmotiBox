@@ -1,4 +1,5 @@
 import {Request, Response } from "express"
+import { WebClient } from "@slack/web-api";
 
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -10,6 +11,8 @@ app.use(bodyParser.json());
 
 // Your Slack bot token (Bot User OAuth Token)
 const SLACK_BOT_TOKEN = process.env.SLACK_TOKEN;
+
+const slackClient = new WebClient(SLACK_BOT_TOKEN);
 
 app.get("/", async (req: Request, res: Response) => {
     res.send("Healthy")
@@ -49,6 +52,39 @@ app.post("/slack", async (req: Request, res: Response) => {
 
     // Respond quickly to Slack with 200 OK
     res.sendStatus(200);
+});
+
+app.post("/slack/commands", async (req: Request, res: Response) => {
+    const channelId = req.body.channel_id;
+    const userId = req.body.user_id;
+
+    try {
+        // Fetch the latest 100 messages from the channel
+        const history = await slackClient.conversations.history({
+            channel: channelId,
+            limit: 100,
+        });
+
+        // Example: Just count messages and reply to user
+        res.json({
+            response_type: "ephemeral",
+            text: `Fetched ${history.messages?.length ?? 0} messages from this channel.`,
+        });
+
+        // TODO: Store or process the logs as needed
+        // Example: Log to console
+        if (history.messages) {
+            history.messages.forEach(msg =>
+                console.log(`[${channelId}] ${msg.user}: ${msg.text}`)
+            );
+        }
+    } catch (error) {
+        console.error(error);
+        res.json({
+            response_type: "ephemeral",
+            text: "Failed to fetch chat history.",
+        });
+    }
 });
 
 
