@@ -11,7 +11,6 @@ app.use(bodyParser.json());
 
 // Your Slack bot token (Bot User OAuth Token)
 const SLACK_BOT_TOKEN = process.env.SLACK_TOKEN;
-
 const slackClient = new WebClient(SLACK_BOT_TOKEN);
 
 app.get("/", async (req: Request, res: Response) => {
