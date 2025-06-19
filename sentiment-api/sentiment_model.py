@@ -68,7 +68,7 @@ def processMessage(message: str) -> dict:
     }
 
 def summarizeMessages(messages: list) -> dict:
-    """Summarize a list of messages with average emotion scores and get OpenAI response."""
+    """Summarize messages and return average emotions + summary text."""
     results = [processMessage(msg) for msg in messages]
 
     # Calculate average emotion scores
@@ -85,10 +85,11 @@ def summarizeMessages(messages: list) -> dict:
         "messages": messages_text
     }
 
-    # Ask OpenAI for the summary
     gpt_output = get_openai_response(summary_input)
 
+
+    # Format result to match: { summary: "", happiness: 0, ... }
     return {
-        "summary_input": summary_input,
-        "openai_response": gpt_output
+        "summary": gpt_output,
+        **avg_scores
     }
