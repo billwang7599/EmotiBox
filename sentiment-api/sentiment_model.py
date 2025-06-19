@@ -3,6 +3,8 @@ import pandas as pd
 from collections import defaultdict
 from openai import OpenAI
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Load model once at module level
 classifier = pipeline(
@@ -23,7 +25,7 @@ EMOTION_MAPPING = {
 
 TARGET_EMOTIONS = ["happiness", "sadness", "frustration", "tiredness", "neutral"]
 
-# OpenAI Client
+# Initialize OpenAI client
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 def get_openai_response(summary_input: dict) -> str:
@@ -69,7 +71,7 @@ def summarizeMessages(messages: list) -> dict:
     """Summarize a list of messages with average emotion scores and get OpenAI response."""
     results = [processMessage(msg) for msg in messages]
 
-    # Calculate averages
+    # Calculate average emotion scores
     totals = defaultdict(float)
     for r in results:
         for emotion in TARGET_EMOTIONS:
