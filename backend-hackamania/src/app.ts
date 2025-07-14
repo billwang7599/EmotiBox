@@ -1,20 +1,20 @@
 import { Request, Response } from "express";
-import { WebClient } from "@slack/web-api";
+import prisma from "./data/client"
+import { slackWebhook, slackSlashGetHistory, createUser, changeLeader, getMessages } from "./controller/slackController";
+import { analyzeMessage, summarizeMessages, Message } from "./util/agentApi";
 
 const express = require("express");
 const bodyParser = require("body-parser");
-require('dotenv').config();
 
 const app = express();
 
 // For regular API/event routes
 app.use(bodyParser.json());
 // For Slack slash commands, which are sent as application/x-www-form-urlencoded
-app.use('/slack/commands', bodyParser.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true })); // to parse Slack's form body
+
 
 // Slack bot token (Bot User OAuth Token)
-const SLACK_BOT_TOKEN = process.env.SLACK_TOKEN;
-const slackClient = new WebClient(SLACK_BOT_TOKEN);
 
 // Health check endpoint
 app.get("/", (req: Request, res: Response) => {
@@ -23,72 +23,117 @@ app.get("/", (req: Request, res: Response) => {
 
 // Slack Events API endpoint (for event subscriptions and mentions)
 app.post("/slack", async (req: Request, res: Response) => {
-    const { type, challenge, event } = req.body;
-
-    // Respond to Slack's URL verification challenge
-    if (type === "url_verification") {
-        return res.send({ challenge });
-    }
-
-    if (
-        event &&
-        event.user &&
-        event.type &&
-        (event.type === "app_mention" || event.type === "message")
-    ) {
-        if (event.bot_id) {
-            return res.sendStatus(200);
-        }
-
-        try {
-            await slackClient.chat.postMessage({
-                channel: event.channel,
-                text: "cool",
-            });
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    res.sendStatus(200);
+  await slackWebhook(req, res);
 });
 
 // Slack Slash Command endpoint
-app.post("/slack/commands", async (req: Request, res: Response) => {
-    // Immediately acknowledge the request to avoid dispatch_failed errors:
-    res.status(200).send(""); // Empty body = ephemeral message handled async
+app.post("/slack/getChannelHistory", async (req: Request, res: Response) => {
+  await slackSlashGetHistory(req, res);
+});
 
-    const channelId = req.body.channel_id;
-    const userId = req.body.user_id;
+app.post('/slack/createUser', async (req: Request, res: Response) => {
+  await createUser(req, res);
+});
 
-    try {
-        // Fetch the latest 100 messages from the channel
-        const history = await slackClient.conversations.history({
-            channel: channelId,
-            limit: 100,
-        });
+app.post('/slack/changeLead', async (req: Request, res: Response) => {
+  await changeLeader(req, res);
+});
 
-        // Optional: Log to backend
-        if (history.messages) {
-            history.messages.forEach(msg =>
-                console.log(`[${channelId}] ${msg.user}: ${msg.text}`)
-            );
-        }
+app.post('/slack/getMessages', async (req: Request, res: Response) => {
+  await getMessages(req, res);
+});
 
-        // Send results as follow-up message in the channel (visible to user)
-        await slackClient.chat.postMessage({
-            channel: channelId,
-            text: `<@${userId}> Requested chat history: found ${history.messages?.length ?? 0} messages.`,
-        });
-    } catch (error) {
-        console.error(error);
-        // Follow up with error message
-        await slackClient.chat.postMessage({
-            channel: channelId,
-            text: `<@${userId}> Sorry, I couldn't fetch chat history.`,
-        });
-    }
+app.post('/test/a', async (req: Request, res: Response) => {
+  const data = await analyzeMessage("meow");
+  res.json(data)
+});
+
+app.post('/test/b', async (req: Request, res: Response) => {
+  const payload: Message[] = [
+  {
+    message: "i hate my workplace",
+    happiness: 0.1,
+    frustration: 0.9,
+    tiredness: 0.6,
+    sadness: 0.3
+  },
+  {
+    message: "I'm really proud of the work I did today.",
+    happiness: 0.9,
+    frustration: 0.1,
+    tiredness: 0.2,
+    sadness: 0.1
+  },
+  {
+    message: "I feel burned out after all these meetings.",
+    happiness: 0.3,
+    frustration: 0.6,
+    tiredness: 0.9,
+    sadness: 0.5
+  },
+  {
+    message: "My team was so helpful during the project.",
+    happiness: 0.8,
+    frustration: 0.2,
+    tiredness: 0.4,
+    sadness: 0.1
+  },
+  {
+    message: "I don't feel like my ideas are being heard.",
+    happiness: 0.2,
+    frustration: 0.7,
+    tiredness: 0.5,
+    sadness: 0.7
+  },
+  {
+    message: "Excited to start the new initiative next week!",
+    happiness: 0.95,
+    frustration: 0.05,
+    tiredness: 0.2,
+    sadness: 0.05
+  },
+  {
+    message: "It's hard to concentrate with all the distractions.",
+    happiness: 0.2,
+    frustration: 0.6,
+    tiredness: 0.7,
+    sadness: 0.3
+  },
+  {
+    message: "Today was an average day at work.",
+    happiness: 0.5,
+    frustration: 0.3,
+    tiredness: 0.4,
+    sadness: 0.3
+  }
+];
+  const data = await summarizeMessages(payload);
+  res.json(data);
+});
+
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received. Disconnecting Prisma...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received. Disconnecting Prisma...');
+  await prisma.$disconnect();
+  process.exit(0);
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Slack bot listening on port ${PORT}`));
+
+
+
+
+// {
+//     message: summary of all the messages,
+//     happiness: 0.1,
+//     frustration: 0.9,
+//     tiredness: 0.6,
+//     sadness: 0.3
+//   },

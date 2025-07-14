@@ -13,3 +13,23 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  userid      String    @id @default(uuid())
+  teamlead    User?     @relation("TeamLead", fields: [teamleadid], references: [userid])
+  teamleadid  String?      
+  teamMembers User[]    @relation("TeamLead")
+  messages    Message[] // Relation to messages sent by this user
+}
+
+model Message {
+  messageid    String   @id @default(uuid())
+  timestamp    DateTime @default(now())
+  message      String
+  userid       String 
+  user         User     @relation(fields: [userid], references: [userid])
+  happiness    Decimal  @db.Decimal(3,2) // example: 0.75
+  sadness      Decimal  @db.Decimal(3,2)
+  frustration  Decimal  @db.Decimal(3,2)
+  tiredness    Decimal  @db.Decimal(3,2)
+}
