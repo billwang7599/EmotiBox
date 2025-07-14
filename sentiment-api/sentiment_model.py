@@ -35,7 +35,7 @@ def get_openai_response(summary_input: dict) -> str:
         f"{summary_input['average_emotion_scores']}\n\n"
         f"Here are the messages:\n" +
         "\n".join(f"- {msg}" for msg in summary_input['messages']) +
-        "\n\nWrite a short paragraph summarizing the overall sentiment and provide a note to managers acknowledging the emotions and encouraging support."
+        "\n\nWrite a short paragraph summarizing all the messages and overall emotions of team members. Do not include direct quotes to improve anonymity."
     )
 
     response = client.chat.completions.create(
@@ -69,14 +69,12 @@ def processMessage(message: str) -> dict:
 
 def summarizeMessages(messages: list) -> dict:
     """Summarize messages and return average emotions + summary text."""
-    results = [processMessage(msg) for msg in messages]
-
     # Calculate average emotion scores
     totals = defaultdict(float)
+    results = [processMessage(msg["message"]) for msg in messages]
     for r in results:
         for emotion in TARGET_EMOTIONS:
             totals[emotion] += r.get(emotion, 0.0)
-
     avg_scores = {k: round(v / len(results), 4) for k, v in totals.items()}
     messages_text = [r["message"] for r in results]
 
@@ -87,9 +85,35 @@ def summarizeMessages(messages: list) -> dict:
 
     gpt_output = get_openai_response(summary_input)
 
+    return gpt_output, avg_scores
 
-    # Format result to match: { summary: "", happiness: 0, ... }
-    return {
-        "summary": gpt_output,
-        **avg_scores
+def calculate_emotion_means(messages):
+    totals = defaultdict(float)
+    count = len(messages)
+    for msg in messages:
+        for emotion in TARGET_EMOTIONS:
+            totals[emotion] += float(msg.get(emotion, 0.0))
+    means = {
+        emotion: (round(totals[emotion] / count, 4) if count > 0 else 0.0)
+        for emotion in TARGET_EMOTIONS
     }
+    
+    return means
+
+    # Example usage:
+# def summarizeMessages(messages: list) -> dict:
+#     """Summarize messages and return average emotions + summary text."""
+#     # Each msg should be a string
+#     results = [processMessage(msg) for msg in messages]
+#     avg_scores = calculate_emotion_means(results)
+#     messages_text = [r["message"] for r in results]
+#     summary_input = {
+#         "average_emotion_scores": avg_scores,
+#         "messages": messages_text
+#     }
+#     gpt_output = get_openai_response(summary_input)
+#     # Format result: { summary: "", happiness: 0, ... }
+#     return {
+#         "summary": gpt_output,
+#         **avg_scores
+#     }
